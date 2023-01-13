@@ -122,7 +122,7 @@ junto con enlace al repositorio Git entregado.
 # Solución
 
 
-## Plateamiento.
+## Planteamiento.
 
 En la práctica anterior, construimos en script capaz de extraer información de forma automatizada del Instituto nacional de estadística (INE), relativos al Atlas de distribución de renta de los hogares, estos indicadores incluyen datos como:
 
@@ -166,7 +166,7 @@ En nuestro análisis realizaremos scrapping de los siguientes indicadores:
 
 ---
 
-### Descripion dataset.
+### Descripción dataset.
 
 #### Indicadores de renta media y mediana - INE
 
@@ -501,7 +501,7 @@ Las hipótesis iniciales a las que querremos dar respuesta son:
 
 ---
 
-#### Seleccion datos a analizar
+#### Selección datos a analizar
 
 Antes de avanzar con la selección de datos, en primera instancia queremos conocer la correlación cruzada entre las varaibles.
 
