@@ -1,0 +1,936 @@
+---
+title: 'Tipología y ciclo de vida de los datos: PRA2 - Limpieza y análisis de datos'
+author: "Autor: Carlos José Ospina"
+date: "Enero 2023"
+output:
+  html_document:
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+    includes:
+      in_header: 75.584-PEC-header.html
+  word_document: default
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+
+
+RequiredPackages <- c("vctrs","tidyverse","plyr","magrittr", "skimr",
+                      "textclean", "rstatix","ggcorrplot","umap","apcluster",
+                      "dbscan", "factoextra","cluster","sf")
+
+for (i in RequiredPackages) { #Installs packages if not yet installed
+  if (!require(i, character.only = TRUE)) install.packages(i, repos = "https://cran.rstudio.com/")
+}
+
+```
+
+
+```{r libraries, include=FALSE}
+
+library(rstatix)
+library(ggplot2)
+library(magrittr)
+library(skimr)
+library(textclean)
+library(ggcorrplot)
+library(tidyverse)
+library(umap)
+library(apcluster)
+library(dbscan)
+library(factoextra)
+library(cluster)
+library(sf)
+
+```
+
+
+# Competencias
+
+En esta práctica se desarrollan las siguientes competencias del Máster de Data Science:
+
+* Capacidad de analizar un problema en el nivel de abstracción adecuado a cada situación y aplicar las habilidades y conocimientos adquiridos para abordarlo y resolverlo.
+* Capacidad para aplicar las técnicas específicas de tratamiento de datos (integración, transformación, limpieza y validación) para su posterior análisis.
+
+# Objetivos
+
+Los objetivos concretos de esta práctica son:
+
+* Aprender a aplicar los conocimientos adquiridos y su capacidad de resolución de problemas en entornos nuevos o poco conocidos dentro de contextos más amplios o multidisciplinares.
+
+* Saber identificar los datos relevantes y los tratamientos necesarios (integración,limpieza y validación) para llevar a cabo un proyecto analítico.
+
+* Aprender a analizar los datos adecuadamente para abordar la información contenida en los datos.
+
+* Identificar la mejor representación de los resultados para aportar conclusiones sobre el problema planteado en el proceso analítico.
+
+* Actuar con los principios éticos y legales relacionados con la manipulación de datos en función del ámbito de aplicación.
+
+* Desarrollar las habilidades de aprendizaje que les permitan continuar estudiando de un modo que tendrá que ser en gran medida autodirigido o autónomo.
+
+* Desarrollar la capacidad de búsqueda, gestión y uso de información y recursos en el ámbito de la ciencia de datos.
+
+
+
+# Descripción de la Práctica a realizar
+
+El objetivo de esta actividad será el tratamiento de un dataset, que puede ser el creado en la Práctica 1 o bien cualquier dataset libre disponible en Kaggle https://www.kaggle.com.
+
+Un ejemplo de dataset con el que podéis trabajar es el “Heart Attack Analysis & Prediction dataset”:
+https://www.kaggle.com/datasets/rashikrahmanpritom/heart-attack-analysis-prediction-dataset
+
+**Importante**: si se elige un dataset diferente al propuesto es importante que este contenga una amplia variedad de datos numéricos y categóricos para poder realizar un análisis más rico y poder responder a las diferentes preguntas planteadas en el
+enunciado de la práctica.
+
+Siguiendo las principales etapas de un proyecto analítico, las diferentes tareas a realizar (y justificar) son las siguientes:
+
+1. Descripción del dataset. ¿Por qué es importante y qué pregunta/problema pretende responder?
+
+2. Integración y selección de los datos de interés a analizar. Puede ser el resultado de adicionar diferentes datasets o una subselección útil de los datos originales, en base al objetivo que se quiera conseguir.
+
+3. Limpieza de los datos.
+
+3.1. ¿Los datos contienen ceros o elementos vacíos? Gestiona cada uno de estos casos.
+
+3.2. Identifica y gestiona los valores extremos.
+
+4. Análisis de los datos.
+
+4.1. Selección de los grupos de datos que se quieren analizar/comparar (p.ej., si se van a comparar grupos de datos, ¿cuáles son estos grupos y qué tipo de análisis se van a aplicar?)
+
+4.2. Comprobación de la normalidad y homogeneidad de la varianza.
+
+4.3. Aplicación de pruebas estadísticas para comparar los grupos de datos. En función de los datos y el objetivo del estudio, aplicar pruebas de contraste de hipótesis, correlaciones, regresiones, etc. Aplicar al menos tres métodos de análisis diferentes.
+
+5. Representación de los resultados a partir de tablas y gráficas. Este apartado se puede responder a lo largo de la práctica, sin necesidad de concentrar todas las representaciones en este punto de la práctica.
+
+6. Resolución del problema. A partir de los resultados obtenidos, ¿cuáles son las conclusiones? ¿Los resultados permiten responder al problema?
+
+7. Código. Hay que adjuntar el código, preferiblemente en R, con el que se ha realizado la limpieza, análisis y representación de los datos. Si lo preferís,también podéis trabajar en Python.
+
+8. Vídeo. Realizar un breve vídeo explicativo de la práctica (máximo 10 minutos), donde ambos integrantes del equipo expliquen con sus propias palabras el desarrollo de la práctica, basándose en las preguntas del enunciado para justificar y explicar el código desarrollado. Este vídeo se deberá entregar a través de un enlace al Google Drive de la UOC (https://drive.google.com/...),
+junto con enlace al repositorio Git entregado.
+
+---
+
+# Solución
+
+
+## Plateamiento.
+
+En la práctica anterior, construimos en script capaz de extraer información de forma automatizada del Instituto nacional de estadística (INE), relativos al Atlas de distribución de renta de los hogares, estos indicadores incluyen datos como:
+
+
+* Indicadores de renta media y mediana.
+* Distribución por fuente de ingresos.
+* Porcentaje de población con ingresos por unidad de consumo por debajo de determinados umbrales fijos por sexo.
+* Porcentaje de población con ingresos por unidad de consumo por debajo de determinados umbrales fijos por sexo y tramos de edad.
+* Porcentaje de población con ingresos por unidad de consumo por debajo de determinados umbrales fijos por sexo y nacionalidad.
+* Porcentaje de población con ingresos por unidad de consumo por debajo/encima de determinados umbrales relativos por sexo.
+* Porcentaje de población con ingresos por unidad de consumo por debajo/encima de determinados umbrales relativos por sexo y tramos de edad.
+* Porcentaje de población con ingresos por unidad de consumo por debajo/encima de determinados umbrales relativos por sexo y nacionalidad.
+* Índice de Gini y Distribución de la renta P80/P20.
+* Indicadores demográficos.
+
+Estos datos los podemos extraer de forma agregada por provincia/municipio/distrito/sección, y año.
+
+Los indicadores socio económicos son datos muy útiles en multitud de casos, especialmente en el ámbito público, como por ejemplo el caso descrito en (Bernat Goñi Ros, [2008](https://www.ub.edu/geocrit/sn/sn-272.htm)) respecto a la identificaciones de **sección censales desfavorecidas** en la RMB. Una sección censal desfavorecida se define como "aquellas áreas urbanas espacialmente delimitadas en las cuales el fenómeno de la exclusión social afecta a amplios sectores de la población residente[2] (Conway & Konvitz, 2000), entendiendo la exclusión social como una acumulación de déficits vinculados al conocimiento, la información, el consumo cultural, la sanidad y las redes sociales que impiden a las personas que lo padecen acceder a bienes, derechos y oportunidades que se consideran básicos, participar en la vida social y económica, y constituirse como ciudadanos plenos (Subirats & Gomà, 2003). El concepto de exclusión social es más amplio que el de pobreza y reconoce que existen otros factores a parte de los bajos ingresos que pueden limitar la participación de las personas en la sociedad (Conway & Konvitz, 2000)".
+
+En base lo resultados de este estudio, los distintos stakeholders interesados como el ayuntamiento de Barcelona, La diputación de Barcelona, o la Generalitat de Catalunya, pueden llevar a cabo iniciativas para corregir estas situaciones de vulnerabilidad y revertir el grado de exclusión de las residentes de estas secciones.
+
+Sin embargo, este estudio tiene una problemática, y es que se basa en datasets publicados que se publican cada decenio, lo cual nos impide realizar un seguimiento periódico de la evolución de la situación de exclusión de estas zonas.
+
+Por ello, nos proponemos usar los indicares que podemos extraer del INE que tienen una periodicidad anual para crear un modelo con una capacidad de clasificación de sección censal desfavorecida similar a la que usa Bernat Goñi en su estudio.
+
+A parte del dataset que hemos obtenido del INE usaremos tambien la fuente de (El nacional.cat)[https://elnacional.carto.com/tables/seccions_censals_barcelona/public/map] para obtener información ampliada sobre los las secciones censales de la ciudad de barcelona, en la que se amplian las secciones con sus correspondientes barrios y distritos.
+
+En nuestro análisis realizaremos scrapping de los siguientes indicadores:
+
+
+**Mapa de distritos y barrios de Barcelona:**
+
+<p><a href="https://commons.wikimedia.org/wiki/File:Barcelona_Barris_map.svg#/media/Archivo:Barcelona_Barris_map.svg"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Barcelona_Barris_map.svg/1200px-Barcelona_Barris_map.svg.png" alt="Barcelona Barris map.svg"></a><br>De © Sémhur&nbsp;/&nbsp;<a href="//commons.wikimedia.org/wiki/Main_Page" title="Main Page">Wikimedia Commons</a>, <a href="https://creativecommons.org/licenses/by-sa/4.0" title="Creative Commons Attribution-Share Alike 4.0">CC BY-SA 4.0</a>, <a href="https://commons.wikimedia.org/w/index.php?curid=3914779">Enlace</a></p>
+
+---
+
+**Mapa de secciones censales vulnerables según estudio Bernat Goñi:**
+
+
+<img src="https://www.ub.edu/geocrit/sn/sn-272_archivos/image013.jpg"/>
+
+---
+
+### Descripion dataset.
+
+#### Indicadores de renta media y mediana - INE
+
+El detalle de los campos de este dataset es:
+
+
+* **Municipios:** Código y nombre del Municipio.
+* **Distritos:** Código, nombre del municipio y código del distrito.
+* **Secciones:** Código, nombre del municipio código de la sección.
+* **Indicadores de renta media y mediana:** Medida de renta.
+  * Renta neta media por persona.
+  * Renta neta media por hogar.
+  * Media de la renta por unidad de consumo.
+  * Mediana de la renta por unidad de consumo.
+  * Renta bruta media por persona.
+  * Renta bruta media por hogar.
+* **Periodo:** Año de correspondencia de los datos.
+* **Total:** Valor de la medida.
+
+
+```{r Lectura datos renta media y mediana}
+
+# Path del fichero csv con datos geoespaciales
+renta_path <- "indicadores_renta.csv"
+
+# Lecutra del csv
+df_renta <- read.csv2(renta_path, header = TRUE)
+
+# Seleccion de columans de interes
+#df_sc_renta %<>% select(barrio, distrito, codi_sec_c, cod_mundis)
+
+#Visualizacion del df
+glimpse(df_renta)
+
+```
+
+---
+
+#### Indicadores de fuente de ingresos - INE
+
+El detalle de los campos de este dataset es:
+
+* **Municipios:** Código y nombre del municipio.
+* **Distritos:** Código, nombre del municipio y código del distrito.
+* **Secciones:** Código, nombre del municipio código de la sección.
+* **Indicadores de renta media y mediana:** Medida de ingresos.
+  * Renta bruta media por persona.
+  * Fuente de ingreso: salario.
+  * Fuente de ingreso: pensiones.
+  * Fuente de ingreso: prestaciones por desempleo.
+  * Fuente de ingreso: otras prestaciones.
+  * Fuente de ingreso: otros ingresos.
+* **Periodo:** Año de correspondencia de los datos.
+* **Total:** Valor de la medida.
+
+
+```{r Lectura datos funte ingresos}
+
+# Path del fichero csv con datos de fuente de ingresos
+fuente_ingresos_path <- "indicadores_fuente_ingresos.csv"
+
+# Lecutra del csv
+df_fuente_ingresos <- read.csv2(fuente_ingresos_path, header = TRUE)
+
+# Seleccion de columans de interes
+#df_sc_renta %<>% select(barrio, distrito, codi_sec_c, cod_mundis)
+
+#Visualizacion del df
+glimpse(df_fuente_ingresos)
+
+```
+---
+
+#### Indicadores demográficos
+
+El detalle de los campos de este dataset es:
+
+* **Municipios:** Código y nombre del municipio.
+* **Distritos:** Código, nombre del municipio y código del distrito.
+* **Secciones:** Código, nombre del municipio código de la sección.
+* **Indicadores de renta media y mediana:** Medida de ingresos.
+  * Edad media de la población.
+  * Porcentaje de la población menor de 18 años.
+  * Porcentaje de la población de 65 o más años.
+  * Tamaño medio del hogar.
+  * Porcentaje de hogares unipersonales.
+  * Población.
+  * Porcentaje de población España.
+* **Periodo:** Año de correspondencia de los datos.
+* **Total:** Valor de la medida.
+
+
+```{r Lectura datos demografia}
+
+# Path del fichero csv con datos de fuente de ingresos
+demografia_path <- "indicadores_demograficos.csv"
+
+# Lecutra del csv
+df_demografia <- read.csv2(demografia_path, header = TRUE)
+
+# Seleccion de columans de interes
+#df_sc_renta %<>% select(barrio, distrito, codi_sec_c, cod_mundis)
+
+#Visualizacion del df
+glimpse(df_demografia)
+
+```
+---
+
+#### Mapa de barrios por secciones censales - El Nacional.cat
+
+De este dataset publicado por El Nacional.cat, tenemos los datos geoespaciales de las secciones censales, lo que nos permitirá transformar estos códigos en información mas útil como de barrios y distritos. 
+
+La web donde extremos los datos no proporciona un detalle exhaustivo de los campos, pero tras un análisis visual del csv, observamos que podemos usar los siguientes atributos del mismo, ya que los nombres de las cabeceras son autoexplicativos y los datos contenidos son coherentes y el numero de secciones censales concuerda con la del dataframe anterior
+
+**Columnas de interés**
+
++ **barrio:** Nombre del barrio al que pertenece el código censal.
++ **distrito:** Distrito al que pertenece el código censal.
++ **codi_sec_c:** Código censal.
++ **cod_mundis:** Código de municipio y censal
++ **mundissec**: Id único.
+
+```{r Lectura datos secciones censales}
+# Path del fichero csv con datos geoespaciales
+sc_path <- "seccions_censals_barcelona.csv"
+
+# Lecutra del csv
+df_sc_bcn <- read.csv(sc_path, header = TRUE)
+
+# visualizacion cabecera
+glimpse(df_sc_bcn)
+
+```
+
+---
+
+### Integración y selección
+
+#### Secciones censales
+
+Del dataset seleccionado solo nos quedaremos con las variables de interés descritas anteriormente.
+
+```{r Selección datos secciones censales}
+# Seleccion de columans de interes
+df_sc_bcn_2 <- df_sc_bcn %>% select(barrio, distrito, codi_sec_c, cod_mundis,mundissec)
+df_sc_bcn %<>% select(barrio, distrito, codi_sec_c, cod_mundis)
+
+
+#Visualizacion del df
+skim(df_sc_bcn)
+
+```
+
+Vemos por lo tanto que se han cargado 3 variables, dos alfanuméricas (distrito y barrio) y otra numérica (codi_sec_c), y que contiene 1068 códigos censales únicos para la ciudad de Barcelona.
+
+También observamos que hay definidos 73 barrios y 10 distritos, y que no existen datos en blanco que requieran de limpieza posterior.
+
+---
+
+#### Indicadores de renta ingresos y demográficos
+
+Como podemos observar los datasets de renta, ingresos y demografía tienen las mismas columnas pero contienen diferentes medidas y niveles de agregación, en nuestro caso de estudio nos interesa analizar las clasificar las secciones censales de Barcelona en base a los datos mas recientes disponibles. Por lo tanto filtraremos estos datasets para quedarnos únicamente con los registros que concuerden con esta granularidad.
+
+```{r Seleccion indicadores}
+
+# Seleccionamos los datos de la ciudad de barcelona y del periodo de 2020
+
+df_renta_clean <- df_renta %>% filter(grepl('*Barcelona*', Municipios) & Secciones != ""  & Periodo == 2020 ) %>% 
+  select(c("Secciones","Indicadores.de.renta.media.y.mediana",	"Periodo","Total")) %>%
+  rename_at(c('Indicadores.de.renta.media.y.mediana','Total'), ~c('dimension','value'))
+
+df_fuente_ingresos_clean <- df_fuente_ingresos %>% 
+  filter(grepl('*Barcelona*', Municipios) & Secciones != ""  & Periodo == 2020 ) %>%
+  select(c("Secciones","Distribución.por.fuente.de.ingresos",	"Periodo","Total")) %>%
+  rename_at(c('Distribución.por.fuente.de.ingresos','Total'), ~c('dimension','value'))
+
+# Filtramos la dimension Renta bruta media por persona ya que se encuentra contenida en df de renta
+df_fuente_ingresos_clean %<>% filter(dimension != "Renta bruta media por persona")
+
+
+df_demografia_clean <- df_demografia %>% filter(grepl('*Barcelona*', Municipios) & Secciones != ""  & Periodo == 2020 ) %>% 
+  select(c("Secciones","Indicadores.demográficos",	"Periodo","Total")) %>%
+  rename_at(c('Indicadores.demográficos','Total'), ~c('dimension','value'))
+
+
+# Unificamos los 3 datasets
+
+df_indicadores <- rbind(df_renta_clean, df_demografia_clean, df_fuente_ingresos_clean)
+
+head(df_indicadores)
+
+```
+
+
+### Limpieza
+
+#### Indicadores
+
+Del bloque anterior observamos que en la columna de secciones tenemos una columna "Secciones" que contiene la información del código de municipio +código de sección seguido del nombre de municipio y de nuevo el codigo de ciudad.
+
+Separaremos esta columna para poder identificar de forma unívoca el codigo censal.
+
+```{r Limpieza indicadores - split columns}
+
+df_indicadores[c('mundi_code', 'city_name','filler', 'sc_code')] <- str_split_fixed(df_indicadores$Secciones, ' ', 4)
+
+head(df_indicadores)
+
+```
+
+Ya tenemos las columnas separadas, ahora procederemos a transformar y limpiar las columnas para facilitar su procesamiento.
+
+```{r Limpieza - transform columns values}
+
+# Transformamos las variables
+df_indicadores_clean <- df_indicadores %>% mutate(
+    dimension = replace_non_ascii(mgsub(str_to_lower(str_trim(dimension)),c(" ",":"),c("_",""))),
+    value = as.numeric(gsub(",",".",gsub("\\.", "", value))),
+    mundi_code = as.factor(as.numeric(mundi_code)),
+    sc_code = as.factor(as.numeric(sc_code))
+    )
+
+# Seleccionamos la columnas de interés
+
+df_indicadores_clean %<>% select(c("city_name","mundi_code","sc_code","dimension","value"))
+
+head(df_indicadores_clean)
+
+```
+Observamos como ahora tenemos el siguiente dataset tras la limpieza:
+
+city_name: Nombre del municipio.
+mundi_code: Código municipio + sección censal.
+sc_code: Códifo de sección censal.
+dimension: Nombre de la dimensión.
+value: Valor de la dimension.
+
+#### Secciones censales
+
+Del dataset de secciones censales transformaremos las columnas renombrandolas y convirtiendo los tipos de algunas columnas
+
+```{r Limpieza secciones}
+
+df_sc_bcn_clean <- df_sc_bcn %>% rename_at(c('barrio','distrito', 'codi_sec_c', 'cod_mundis'), ~c('neighborhood','district','sc_code','mundi_code')) %>%
+  mutate_all(as.factor)
+
+df_sc_bcn_2_clean <- df_sc_bcn_2 %>% rename_at(
+  c('barrio','distrito', 'codi_sec_c', 'cod_mundis'),
+  ~c('neighborhood','district','sc_code','mundi_code')) %>%
+  mutate_all(as.factor)
+
+head(df_sc_bcn_clean)
+
+```
+
+#### Dataset Final Desnormalizado
+
+En base al dataset de indicadores y de secciones, crearemos un dataset final que los combine para tener toda la información que necesitamos en un único dataset. El data set resultante tendrá una forma de 20292 observaciones y 7 variables.
+
+```{r Integración dataset final long}
+
+df_indicadores_longer <- df_indicadores_clean %>% 
+  left_join(df_sc_bcn_clean, by = c("mundi_code","sc_code"))
+
+glimpse(df_indicadores_longer)
+
+```
+
+Ahora ya tenemos un dataset con el que podremos trabajar, sin embargo vemos que las dimensiones están creadas como filas, para nuestro estudio queremos que cada una de estas dimensiones estén catalogadas en su propia columna para poder crear los modelos test estadisticos necesarios.
+
+```{r Integración dataset final wide}
+df_indicadores_wider <- df_indicadores_longer %>% pivot_wider(
+  names_from = dimension, 
+  values_from = value,
+  values_fill = 0
+)
+
+glimpse(df_indicadores_wider)
+```
+
+Vemos ahora como tenemos un dataset que contiene 1068 observaciones(el mismo numero de secciones censales) y 23 colmunas. El detalle de las columnas del nuevo dataset es:
+
+* **city_name:** Nombre del municipio
+* **mundi_code:** Identificador municipio + sección censal
+* **sc_code:** Id sección censal
+* **neighborhood:** Nombre barrio
+* **district:** Nombre distrito
+* **renta_neta_media_por_persona:** Renta media de por persona en €
+* **renta_neta_media_por_hogar:** Renta media de por hogar en €
+* **media_de_la_renta_por_unidad_de_consumo:** Renta media de por unidad de consumo en €
+* **mediana_de_la_renta_por_unidad_de_consumo:** Renta mediana por unidad de consumo €
+* **renta_bruta_media_por_persona:** Renta bruta media por persona en €
+* **renta_bruta_media_por_hogar:** Renta bruta media por hogar en €
+* **edad_media_de_la_poblacion:** Edad media de la población en años
+* **porcentaje_de_poblacion_menor_de_18_anos:** Porcentaje de población menor de 18 años.
+* **porcentaje_de_poblacion_de_65_y_mas_anos:** Porcentaje de población mayor de 18 años.
+* **tamano_medio_del_hogar:** Tamaño medio del hogar
+* **porcentaje_de_hogares_unipersonales:** Porcentaje de hogares unipersonales.
+* **poblacion:** Número de residentes
+* **porcentaje_de_poblacion_espanola:** Porcentaje de población española
+* **fuente_de_ingreso_salario:** Media de ingresos por nómina en €
+* **fuente_de_ingreso_pensiones:** Media de ingresos por pensión en €
+* **fuente_de_ingreso_prestaciones_por_desempleo:** Media de ingresos por prestación de desempleo en €
+* **fuente_de_ingreso_otras_prestaciones:** Media de ingresos otras prestaciones en €
+* **fuente_de_ingreso_otros_ingresos:** Media de ingresos por otros ingresos en €
+
+---
+
+### Identificación de valores nulos y extremos
+
+```{r Identificacion de valores nulos}
+
+skim(df_indicadores_wider)
+
+```
+
+Podemos observar como nuestra dataset no contiene valores nulos, también a partir de los percentiles e histogramas ser deduce de forma rápida que no existen valores extremos.
+
+---
+
+### Análisis de los datos.
+
+Nos interesa por lo tanto analizar si podemos realizar segmentación entre barrios que nos permite identificar secciones censales desfavorecidas/ vulnerables y en riesgo de serlo.
+
+Pero antes de realizar esta segmentación nos preguntamos si realmente existe diferencias entre secciones censales y barrios de Barcelona.
+
+Las hipótesis iniciales a las que querremos dar respuesta son:
+
+* ***¿Existe diferencia entre los ingresos medios por persona y hogar por barrios?***
+* ***¿Existe relación entre los ingresos medios y la edad la población residente en los barrios y su nacionalidad?***
+
+---
+
+#### Seleccion datos a analizar
+
+Antes de avanzar con la selección de datos, en primera instancia queremos conocer la correlación cruzada entre las varaibles.
+
+```{r Correlacion de variables, fig.width=15, fig.height=15}
+
+# Preseleccion de valores
+df_indicadores_corr <- df_indicadores_wider %>% select(!c("city_name","mundi_code", "sc_code", "neighborhood", "district"))
+
+# Calculamos la matriz de correlación
+# Usamos la opción "pairwise.complete.obs" para evitar errores por posibles valores nulos
+# de las variables de contaminación
+df_indicadores_corr_mat <- round(cor(df_indicadores_corr, use="pairwise.complete.obs"),2)
+
+# Generamos la matriz de correlación de p-values
+df_indicadores_mat <- cor_pmat(df_indicadores_corr)
+
+# Generamos el gráfico de correlaciones.
+ggp1a <- ggcorrplot(df_indicadores_corr_mat, lab = TRUE, type = "lower", p.mat = df_indicadores_mat)
+
+ggp1a
+
+
+```
+
+
+
+De este primer análisis de correlaciones cruzadas podemos concluir que:
+
+* Existe una gran correlación entre los múltiple indicadores de ingresos de renta. Esto tiene sentido ya que se puede llegar a deducir que los ingresos familiares tienen una fuerte dependencia con los ingresos personales. De la misma forma que la renta neta es un porcentaje directo de la renta bruta. Por lo tanto, nos quedaremos con solo una de estas variables, la cual sera la **renta_neta_media_por_persona**
+
+* La variable de "fuente_ingresos_otras_prestaciones" tiene no tiene influencia en el restos de variable, por lo cual la excluiremos de nuestro análisis.
+
+Repetiremos el mismo análisis de correlación pero excluyendo las variables descritas anteriormente.
+
+```{r Correlacion de variables 2, fig.width=15, fig.height=15}
+
+# Preseleccion de valores
+df_indicadores_corr <- df_indicadores_wider %>% 
+  select(!c("city_name",
+            "mundi_code",
+            "sc_code",
+            "neighborhood",
+            "district",
+            "renta_neta_media_por_hogar",
+            "media_de_la_renta_por_unidad_de_consumo",
+            "mediana_de_la_renta_por_unidad_de_consumo",
+            "renta_bruta_media_por_persona",
+            "renta_bruta_media_por_hogar",
+            "fuente_de_ingreso_otras_prestaciones"
+            ))
+
+# Calculamos la matriz de correlación
+# Usamos la opción "pairwise.complete.obs" para evitar errores por posibles valores nulos
+# de las variables de contaminación
+df_indicadores_corr_mat <- round(cor(df_indicadores_corr, use="pairwise.complete.obs"),2)
+
+# Generamos la matriz de correlación de p-values
+df_indicadores_mat <- cor_pmat(df_indicadores_corr)
+
+# Generamos el gráfico de correlaciones.
+ggp1a <- ggcorrplot(df_indicadores_corr_mat, lab = TRUE, type = "lower", p.mat = df_indicadores_mat)
+
+ggp1a
+
+
+```
+
+
+Sobre las primeras hipótesis planteadas crearemos los dataframes que nos permitan dar respuesta las mismas
+
+```{r df comparacion ingresos por barrios boxplot, fig.width=7, fig.height=7}
+
+df_indicadores_wider %>%
+  group_by(district, neighborhood) %>%
+  dplyr::summarize(renta_neta_media_por_persona = mean(renta_neta_media_por_persona )) %>%
+  ggplot(aes(x = reorder(neighborhood,renta_neta_media_por_persona,na.rm = TRUE), y = renta_neta_media_por_persona, fill = district)) +
+  geom_bar(stat="identity") +  theme_test() + labs(title = "Renta media por persona por barrrio") +
+  xlab("Barrio") + ylab("Renta media por persona") + scale_color_discrete(name= "Distrito") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5), legend.position = "top")
+
+df_indicadores_wider %>%
+  group_by(district) %>%
+  dplyr::summarize(renta_neta_media_por_persona = mean(renta_neta_media_por_persona )) %>%
+  ggplot(aes(x = reorder(district,renta_neta_media_por_persona), y = renta_neta_media_por_persona, fill=district)) +
+  geom_bar(stat="identity") +  theme_test() + labs(title = "Renta media por persona por distrito") +
+  xlab("Barrio") + ylab("Renta media por hogar") + scale_color_discrete(name= "Distrito") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5), legend.position = "none")
+
+```
+
+A nivel visual podemos intuir que sí existe diferencias a nivel de distrito y barrio, con la mayor diferencia produciéndose entre el distrito de Sarria-SantGervasi respecto al distrito de ciutat bella. Pero realicemos un test estadístico de ANOVA para validar esta hipótesis.
+
+```{r Test anova sobre ingresos medios}
+
+anova_ingresos <- aov(renta_neta_media_por_persona ~ district, data = df_indicadores_wider)
+
+summary(anova_ingresos)
+
+```
+
+
+Podemos observar que el valor de Pr(>F) es inferior al nivel de significancia por lo que se confirma que existe diferencia entre las medias de renta entre el distrito al que pertenece una persona y su ingresos netos.
+
+Continuemos ahora con el análisis de la segunda cuestión, para ello visualizaremos la distribución de porcentaje de población envejecida respecto al porcentaje de población extranjera y el nivel de renta.
+
+
+```{r df demografia por barrios boxplot}
+
+df_indicadores_wider %>%
+  group_by(district, neighborhood) %>%
+  dplyr::summarize(
+      porcentaje_de_poblacion_de_65_y_mas_anos = mean(porcentaje_de_poblacion_de_65_y_mas_anos),
+      porcentaje_de_poblacion_espanola = mean(porcentaje_de_poblacion_espanola),
+      renta_neta_media_por_hogar = mean(renta_neta_media_por_hogar)
+    ) %>%
+  ggplot(aes(
+    x = porcentaje_de_poblacion_de_65_y_mas_anos, 
+    y = porcentaje_de_poblacion_espanola, 
+    size = renta_neta_media_por_hogar,
+    color = district,
+    label = neighborhood
+    )) +
+  geom_point() +  theme_test() + labs(title = "Scatter pobalción española y edad respecto ingresos") +
+  xlab("Porcentaje de población de mas de 65 años") + ylab("Porcentaje población española") + scale_color_discrete(name= "Distrito") +
+  theme(legend.position = "bottom", legend.box = "vertical")
+
+
+```
+
+En este caso, extraer conclusiones de la visualización de los datos puede ser algo mas complejo. A simple vista, podemos intuir que a partir de cierto umbral (aprox por debajo del 70%) el porcentaje de población española influye en la renta media per cápita, también se puede observar como en determinada franja de porcentaje de población mayor de 65 años (entre un 20% y un 25%) también existe una diferenciación en ingresos respecto a las otras franjas.
+
+Validemos ahora mediante el test Anova de 2 direcciones si existe diferencia en las medias entre estas tres variables.
+
+```{r Test ANOVA demografia respecto ingresos medios}
+
+anova_demografia <- aov(renta_neta_media_por_persona ~ porcentaje_de_poblacion_de_65_y_mas_anos + porcentaje_de_poblacion_espanola, data = df_indicadores_wider)
+
+summary(anova_demografia)
+
+```
+
+Vemos como también en esta caso el p-value es lo suficientemente reducido como para rechazar la hipótesis de nula de que no existe diferencia entre la medias.
+
+---
+
+
+#### Comprobación de la normalidad y homogeneidad de la varianza
+
+Veremos ahora si los modelos ANOVA generados cumplen con la condición homocedasticidad para ello, haremos uso los gráficos "Residual vs Fitted" y "QQ-plot"
+
+```{r Validacion de hemocedasticidad demografia}
+
+# Ploteamos el diagrama de residuos vs valores ajustados
+plot(anova_demografia, which = 1)
+plot(anova_demografia, which = 2)
+
+```
+
+Estos gráficos nos permiten obtener información sobre:
+
+* Si hemos utilizado el tipo de relación adecuada (si el modelo debería ser no lineal en lugar de lineal).el resultado del modelo ajustado (linea roja) debe rondar la recta horizontal. En nuestro caso vemos que la linea roja se aproxima a la recta.
+
+* Si el QQplot de una regresión de un modelo teórico perfectamente homocedastatico vs el obtenido en la realidad. En este caso vemos que se aprxima pero con episodio de colas pesadas a la derecha.
+
+En base al análisis visual resulta difícil afirmar que cumple la condición hemocedasticidad.
+
+```{r Validacion de hemocedasticidad demografia 2}
+
+# Ploteamos el diagrama de residuos vs valores ajustados
+plot(anova_ingresos, which = 1)
+plot(anova_ingresos, which = 2)
+
+```
+
+En el segundo modelo, si que observamos que el gráfico de QQ se aproxima mucho a la recta y el gráfico de Residuals vs Fitted la linea roja se aproxima a la recta 0. Por lo que en este caso si que podemos afirmar que la condicion de hemocedasticidad.
+
+---
+
+### Aplicación de pruebas estadísticas
+
+
+En nuestro problema planteado queremos realizar un modelo clasificador que me permita identificar secciones censales desfavorecidas/ vulnerables. Por lo cual como primer paso debemos realizar una normalización de los datos con los que trabajaremos y posteriormente realizar una reducción de la dimensionalidad con técnicas como la PCA o UMAP.
+
+
+```{r Normalización y reducción de normalidad}
+
+# Preseleccion de valores
+df_indicadores_work <- df_indicadores_wider %>% 
+  select(!c(
+            "city_name",
+            # "mundi_code",
+            "sc_code",
+            "neighborhood",
+            "district",
+            "renta_neta_media_por_hogar",
+            "media_de_la_renta_por_unidad_de_consumo",
+            "mediana_de_la_renta_por_unidad_de_consumo",
+            "renta_bruta_media_por_persona",
+            "renta_bruta_media_por_hogar",
+            "fuente_de_ingreso_otras_prestaciones"
+            ))
+
+# Normalizamos los valores para creacion del modelo
+df_indicadores_norm <- df_indicadores_work %>% 
+  column_to_rownames("mundi_code") %>%
+  scale()
+  
+# Visualizacion
+df_indicadores_norm[0:3,0:3]
+
+```
+
+```{r Reduccion de dimensionalidad}
+set.seed(42)
+umap_fit <- umap(df_indicadores_norm)
+
+df_indicadores_umap <- umap_fit$layout %>%
+  as.data.frame() %>%
+  rownames_to_column("mundi_code") %>%
+  inner_join(
+    df_indicadores_wider %>% select(!where(is.numeric)),by="mundi_code"
+  )
+
+head(df_indicadores_umap)
+
+```
+
+
+Del dataframe resultante podemos observar como ya tenemos dos variables V1, y V2 que nos permitirá observar como se distribuyen en un espacio reducido de dos dimensiones las segmentaciones por barrios.
+
+
+```{r Visiualizacion df UMAP}
+
+df_indicadores_umap %>%
+  ggplot(aes(
+    x = V1, 
+    y = V2, 
+    color = district,
+    shape = district
+    )) +
+  geom_point() +  theme_test() + labs(title = "Scatter indicadores UMAP") +
+  xlab("V1") + ylab("V2") + 
+  scale_color_discrete(name= "Distrito") +
+  scale_shape_manual(values=c(0:9), name = "Distrito") +
+  theme(legend.position = "bottom", legend.box = "vertical") 
+
+
+
+```
+
+Vemos que se aprecian de forma visual 4 clusters diferentes.
+
+* **Cluster 1:** Zona inferior izquierda, concuerda con secciones censales principalmente de Ciutat Vella, Sant Martí, Sant Andreu, Nou Barris, Sants-MontJuic
+* **Cluster 2:** Zona inferior derecha, concuerda con secciones censales principalmente de Sarrià-Sant Gervasi, Les Corts, Sant Martí
+* **Cluster 3:** Zona superior izquierda, concuerda con secciones censales de Ciutat Vella, Sants-Montjuic y Sant-Martí
+* **Cluster 4:** Zona superior derecha, compuesta por el resto de secciones censales.
+
+A simple vista podemos llegar a interpretar que:
+
+* Los clusters 1 y 3 corresponden con secciones censales desfavorecidas/ vulnerables
+* El cluster 4 corresponden con secciones censales pudientes
+* El cluster 2 corresponde a un sección censal de clase media. Aunque puede llegar a intuirse un cluster mas dentro de este.
+
+Comprobemos si las segmentaciones que pretendemos realizar mediante la aplicación de varios algoritmos.
+
+```{r Df de cluster}
+
+df_cluster <- df_indicadores_umap %>% select(V1,V2)
+
+```
+
+
+**DBSCAN**
+
+Probaremos en como primera opción el algoritmo DBSCAN, por lo que debemos encontrar un valor apropiado para la variable epsilon
+
+```{r Determinacion valor afinity}
+
+kNNdistplot(df_indicadores_umap %>% select(V1,V2), k =  9)
+abline(h = 0.47, lty = 2)
+
+```
+
+En base al gráfico anterior podemos extraer que el valor optimo de epsilon para K = 9 es 0,47. Vemos ahora los clusters que se generan.
+
+```{r}
+
+# Asignacion de clusters
+umap_fit_db <- dbscan(df_cluster, eps = 0.47, minPts = 9)
+print(umap_fit_db)
+
+```
+
+```{r Visualizacion DBSCAN}
+
+# Visualización de clusters
+fviz_cluster(umap_fit_db, df_cluster, stand = FALSE, frame = FALSE, geom = "point")
+
+```
+
+Observamos como los clusters generados encajan con las primera inspección visual que realizamos, es más, incluso a identificado el subcluster que se intuía en el cuadrante superior derecho.
+
+**K-Means**
+
+Probaremos también el algoritmo de clusterizacion clásico de k-means. Asignaremos un valor de k = 5, para intentar encontrar un resultado similar al anterior.
+
+```{r K means}
+
+# Cluster de 5
+umap_fit_pam <- pam(df_cluster, 5, metric = "euclidean", stand = FALSE)
+
+
+# Visualizacion de cluster de 5
+umap_pam <- fviz_cluster(umap_fit_pam, data = df_cluster ) + ggtitle("K = 5")
+
+
+# Plots
+umap_pam
+
+```
+
+En este caso, vemos como se agrupan en mismo cluster, barrios pertenecientes a rentas altas y bajas, por lo que el resultado la aplicación del algoritmo k-means no parece el mas adecuado. Esto puede deberse que la forma de los clusters no es uniforme, este cluster es muy eficaz para identificar patrones elípticos.
+
+---
+
+# Conclusiones
+
+A raíz de la comparativa entre las segmentaciones realizadas por los algoritmos de DBSCAN y K-means nos decantaremos por las resultantes de DBSCAN ya que concuerdan de manera mas correcta las observaciones empíricas que conocemos sobre los barrios incluidos en estos clusters y el mapa de desfaborecimiento dentro del estudio de Bernat Goñi Ros.
+
+En concreto nos interesarán los clusters 1 y 2 para generar un mapa de secciones censales desfavorecidas/ vulnerables. Veamos por lo tanto cuantas y cuales son estas secciones.
+
+
+Añadiremos el resultado de la clusterización al DF original para poder visualizarlos en el mapa.
+
+```{r Creacion df con etiquetas cluster}
+
+
+df_indicadores_wider$cluster = umap_fit_db$cluster
+
+glimpse(df_indicadores_wider)
+
+```
+
+```{r count cluesters}
+
+df_indicadores_wider %>% 
+  group_by(cluster) %>% dplyr::summarise(count_cluster = n())
+
+```
+
+Vemos como para los clusters 1 y 2 tenemos un total 202 secciones censales. Para su representacion en el plano haremos uso de los datos geoespaciales que proporciona el [Institut Cartogràfic i Geològic de Catalunya](https://www.icgc.cat/es/Administracion-y-empresa/Descargas/Capas-de-geoinformacion/Secciones-censales).
+
+
+Cargaremos las shapes en un dataframe para su procesamiento y filtramos las secciones del municipio de Barcelona (080193).
+
+```{r carga de shape  file SC catalunya}
+
+# https://www.icgc.cat/es/Administracion-y-empresa/Descargas/Capas-de-geoinformacion/Secciones-censales
+df_geom_shape <- st_read("bseccenv10sh1f1_20210101_1") %>% 
+  mutate(mundissec = as.factor(as.numeric(MUNDISSEC))) %>%
+  filter(MUNICIPI == "080193")
+
+head(df_geom_shape)
+
+```
+Tras la carga del dataframe geoespacial, lo enriqueceremos con nuestro dataframe de secciones censales y el dataframe que contiene los indicadores y los clusters asignados.
+
+
+```{r filtramos SC de barcelona}
+df_sc_temp <- df_sc_bcn_2_clean %>% select(mundi_code,mundissec)
+
+df_sc_desfavorecidas_geom <- df_geom_shape %>% 
+  left_join(df_sc_temp,by="mundissec") %>%
+  left_join(df_indicadores_wider,by="mundi_code")
+
+glimpse(df_sc_desfavorecidas_geom)
+
+```
+
+Observamos como ahora tenemos un dataframe final con toda la información geoespacial, indicadores y clusters. Para finalizar crearemos un mapa donde se muestren como se distribuyen por la ciudad los clusters.
+
+```{r plot mapa SC desfavorecidas, fig.width=15, fig.height=15}
+
+# Plot del geom
+sfmap <-ggplot()+
+  geom_sf(data=df_sc_desfavorecidas_geom, aes(fill=as.factor(cluster)),color = "white")+
+  coord_sf(datum = NA) +
+  theme_void() +
+  theme(legend.key.size = unit(1,"line"), legend.key.height= unit(0.5,"line")) +
+  
+  scale_fill_manual(values = c("grey","red", "orange", "#D4F1F4","#189AB4", "#05445E"), name= "Cluster")+
+  labs(title="Clusters de secciones censales")
+
+sfmap
+
+```
+
+
+>Podemos observar como el mapa de distribución de clusters generados sobre secciones censales valida la hipotesis teórica sobre las etiquetas que podemos asignar a estos clusters si lo contrastamos con conocimientos empíricos y del estudio de Goñi y su mapa de secciones censales desfavorecidas/ vulnerables.
+>
+>Por lo tanto de nuestras secciones podemos etiquetarlas como:
+>
+>* **Cluster 1 y 2:** Secciones censales vulnerables.
+>* **Cluster 3:** Secciones censales no vulnerables.
+>* **Cluster 4 y 5:** Secciones favorecidas.
+>
+>Damos con esto como conseguido el objetivo de nuestro estudio, que es el de usar datos de periodicidad anual para poder obtener sobre la distribución de secciones vulnerables intervales temporales mas cortos, que permitan a las entidades públicas dedicar los recursos necesarios para reconducir estas situaciones de vulnerabilidad de forma mas eficiente, con la intención de seguir y medir el resultado de las iniciativas de forma mas certera.
+
+
+# Export Dataset
+
+Para finalizar exportaremos el dataset final a un csv para ponerlo al alcance de cualquier interesado.
+
+```{r export csv}
+
+write.table(df_indicadores_wider, "secciones_censales_vulnerables.csv", row.names=FALSE, sep = ";", quote = TRUE, )
+
+```
+
+
+---
+
+# Referencias
+
+[1] Bernat Goñi Ros, IDENTIFICACIÓN, LOCALIZACIÓN Y CARACTERIZACIÓN DE LAS SECCIONES CENSALES DESFAVORECIDAS DE LA REGIÓN METROPOLITANA DE BARCELONA <https://www.ub.edu/geocrit/sn/sn-272.htm> [2008]
+
+[2] CONWAY, Maureen y KONVITZ, Joseph. Meeting the challenge of distressed urban areas. Urban Studies, 2000, vol. 37, nº 4, pp. 749-774.
+
+[3] SUBIRATS, J. y GOMÀ, R. Un paso más hacia la inclusión social. Generación de conocimiento, políticas y prácticas para la inclusión social. [Artículo en línea] Madrid: Acción Social, 2003. <http://www.plataformaongs.org/Documental/VisorDocumentos.asp?id=43> [2 de noviembre de 2006].
+
+---
+
